@@ -1,0 +1,68 @@
+// Install and call libraries required to run this code in R
+install.packages(c("tidytext", "pdftools", "rcrossref, "tidyverse", "stringr"))
+install.packages(c("wordcloud", "tm")) #also installs dependenices 'NLP', 'slam', 'BH')
+install.packages(c("scales", "forcats", "httr", "jsonlite"))
+library(tidytools)
+library(pdftools)
+library(rcrossref)
+library(tidyverse) # metapackage with lots of helpful functions
+knitr::opts_chunk$set(echo = TRUE)
+library(tidytext)
+library(stringr)
+library(scales)
+library(forcats)
+library(wordcloud)
+devtools::install_github("cpsievert/LDAvisData")
+library(LDAvisData)
+library(httr)
+library(jsonlite)
+library(tm) 
+library(dplyr)
+
+// look at how many environments have conflicting object names
+options(tibble.print_min = Inf)
+envs <- search() %>% setNames(., .)
+fns <- lapply(envs, ls)
+fns_by_env <- data_frame(
+env = rep.int(names(fns), lengths(fns)),
+fn  = unlist(fns))
+fns_by_env %>% 
+group_by(fn) %>% 
+tally() %>% 
+filter(n > 1) %>% 
+inner_join(fns_by_env)
+
+// masked functions include: %>%; Arith; Compare; 
+// Position; add_row; all_of; alpha; annotate; any_of; as.difftime; 
+// as_data_frame; as_label; as_tibble body<-; col_factor; contains
+// data_frame; date; discard; ends_with; enexpr; enexpers; enquo; enquos; 
+// ensym; ensyms; everything; expr; filter; glimpse; intersect
+// kroenecker; lag; last_col; lst; matches; num_range; one_of; plot
+// prompt; q; quit; quo; quo_name; quos; setdiff; setequal; show; starts_with
+// sym; syms; text; tibble; tribble; type_sum; union; vars; words
+
+// Set your Zotero API key and User ID 
+zotero_api_key <- "RGadoNegCVtwA24yh5uzUVr0" #Find this in settings --> create new key
+zotero_user_ID <- "12468420" # Find this in your Zotero settings 12468420
+
+get_collection_items <- function(collection_key) {
+  base_url <- "https://api.zotero.org/users/"
+  url <- paste0(base_url, zotero_user_ID, "/collections/", collection_key, "/items")
+
+  response <- GET(url, add_headers("Zotero-API-Key" = zotero_api_key))
+  items <- fromJSON(content(response, as = "text"))
+  return(items)
+}
+
+# Get your collection key (found in Zotero's web interface URL)
+collection_key <- "DZ29GD7J" 
+
+# Retrieve items from the collection
+collection_items <- get_collection_items(collection_key)
+
+# Example: Print the titles of all items in the retrieved collection
+for (item in collection_items) {
+  print(item$data$title) 
+}
+
+
