@@ -48,37 +48,52 @@ zotero_user_ID <- "12468420" # Find this in your Zotero settings 12468420
 # Get your collection key (found in Zotero's web interface URL)
 collection_key <- "DZ29GD7J" 
 
-get_all_collection_items <- function(collection_key, start = 0) {
+get_all_collection_items <- function(collection_key, start = 0, limit = 100) {
   base_url <- "https://api.zotero.org/users/"
   url <- paste0(base_url, zotero_user_ID, "/collections/", collection_key, "/items")
 
-  response <- GET(url, add_headers("Zotero-API-Key" = zotero_api_key), query = list(start = start))
+  response <- GET(url, add_headers("Zotero-API-Key" = zotero_api_key), query = list(start = start, limit = limit))
+  #error checking
+    if (response$status_code != 200) {
+      stop("Initial API request failed. Status code:", response$status_code)
+    }
+
   items <- fromJSON(content(response, as = "text"))
+  print(paste("Fetched items:", start, "to", start + length(items)))
+
 # Check if there are more results
-  if (length(items) < 100) {
-     # Reached the end
-     return(items)
-  } else {
-    # Recursive call to get the next page
-    next_items <- get_all_collection_items(collection_key, start + 100) 
+  if (length(items) ==limit) {
+    next_items <- get_all_collection_items(collection_key, start + limit, limit) 
     return(c(items, next_items))
+  } else {
+  #Reached the end
+  return(items)
   }
 }
 
 # Function to retrieve and process items from a Zotero collection (all pages)
 get_all_titles_and_authors <- function(collection_key) {
-  all_items <- get_all_collection_items(collection_key) # Using the pagination function
+  all_items <- get_all_collection_items(collection_key)
 
-results <- lapply(all_items, function(item) {
-    if (!is.null(item$data$creators) && item$data$itemType == "journalArticle") {
+  results <- lapply(all_items, function(item) {
+    if (is.null(item$data$creators)) {
+      # Handle a missing author
+      warning("Item has no creators: ", item$data$title)
+      return(NULL)
+
+    } else if (item$data$itemType != "journalArticle") {
+      # Handling wrong item type
+      warning("Item is not a journal article: ", item$data$title)
+      return(NULL)
+
+    } else { # This else block was likely missing
       title <- item$data$title
       last_name <- item$data$creators[[1]]$lastName
       return(list(title = title, last_name = last_name))
-    } else {
-      return(NULL) # Skip non-article items
     }
   })
- # Filter out NULLs (non-article items)
+
+  # Filter out NULLs (non-article items)
   results <- results[!sapply(results, is.null)]
 
   return(results)
