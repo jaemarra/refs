@@ -1,6 +1,6 @@
 // Install and call libraries required to run this code in R
-install.packages(c("tidytext", "pdftools", "rcrossref, "tidyverse", "stringr"))
-install.packages(c("wordcloud", "tm")) #also installs dependenices 'NLP', 'slam', 'BH')
+install.packages(c("tidytext" , "pdftools" , "rcrossref" , "tidyverse", "stringr"))
+install.packages(c("wordcloud", "tm")) #also installs dependenices 'NLP', 'slam', 'BH'
 install.packages(c("scales", "forcats", "httr", "jsonlite"))
 library(tidytools)
 library(pdftools)
@@ -45,24 +45,103 @@ inner_join(fns_by_env)
 zotero_api_key <- "RGadoNegCVtwA24yh5uzUVr0" #Find this in settings --> create new key
 zotero_user_ID <- "12468420" # Find this in your Zotero settings 12468420
 
-get_collection_items <- function(collection_key) {
-  base_url <- "https://api.zotero.org/users/"
-  url <- paste0(base_url, zotero_user_ID, "/collections/", collection_key, "/items")
-
-  response <- GET(url, add_headers("Zotero-API-Key" = zotero_api_key))
-  items <- fromJSON(content(response, as = "text"))
-  return(items)
-}
-
 # Get your collection key (found in Zotero's web interface URL)
 collection_key <- "DZ29GD7J" 
 
-# Retrieve items from the collection
+get_all_collection_items <- function(collection_key, start = 0) {
+  base_url <- "https://api.zotero.org/users/"
+  url <- paste0(base_url, zotero_user_ID, "/collections/", collection_key, "/items")
+
+  response <- GET(url, add_headers("Zotero-API-Key" = zotero_api_key), query = list(start = start))
+  items <- fromJSON(content(response, as = "text"))
+# Check if there are more results
+  if (length(items) < 100) {
+     # Reached the end
+     return(items)
+  } else {
+    # Recursive call to get the next page
+    next_items <- get_all_collection_items(collection_key, start + 100) 
+    return(c(items, next_items))
+  }
+}
+
+# Function to retrieve and process items from a Zotero collection (all pages)
+get_all_titles_and_authors <- function(collection_key) {
+  all_items <- get_all_collection_items(collection_key) # Using the pagination function
+
+results <- lapply(all_items, function(item) {
+    if (!is.null(item$data$creators) && item$data$itemType == "journalArticle") {
+      title <- item$data$title
+      last_name <- item$data$creators[[1]]$lastName
+      return(list(title = title, last_name = last_name))
+    } else {
+      return(NULL) # Skip non-article items
+    }
+  })
+ # Filter out NULLs (non-article items)
+  results <- results[!sapply(results, is.null)]
+
+  return(results)
+}
+
+titles_and_authors <- get_all_titles_and_authors(collection_key)
+
+# Create a data frame
+data <- data.frame(title = sapply(titles_and_authors, "[[", "title"),
+                   author_last_name = sapply(titles_and_authors, "[[", "last_name"))
+
+# Write to a CSV file
+write.csv(data, file = "zotero_articles.csv", row.names = FALSE)
+
+
+
+/////////////////////////
+
+  # Filter out NULLs (non-article items)
+  results <- results[!sapply(results, is.null)]
+
+  return(results)
+}
+
+
+#Retrieve items from the collection
 collection_items <- get_collection_items(collection_key)
+
+#count how many items in the collection
+num_items <- length(collection_items)
+print(num_items)
 
 # Example: Print the titles of all items in the retrieved collection
 for (item in collection_items) {
   print(item$data$title) 
 }
 
+# Function to retrieve and process items from a Zotero collection
+get_first_author_last_names <- function(collection_key) {
+  items <- get_collection_items(collection_key)
+
+  first_author_last_names <- sapply(items, function(item) {
+    # Check if item has creators and is an article
+    if (!is.null(item$data$creators) && item$data$itemType == "journalArticle") {
+      last_name <- item$data$creators[[1]]$lastName
+      return(last_name)
+    } else {
+      return(NA) # Or another placeholder if not an article or no authors
+    }
+  })
+
+  return(first_author_last_names)
+}
+
+# Remove NAs 
+first_author_last_names <- first_author_last_names[!is.na(first_author_last_names)]
+
+# Retrieve first author last names
+last_names <- get_first_author_last_names(collection_key)
+
+# Retrieve first author last names in alphabetical order 
+last_names <- get_first_author_last_names(collection_key)
+
+# Print the last names
+print(last_names)
 
